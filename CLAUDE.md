@@ -12,7 +12,10 @@ Plataforma para validar QR de invitados en la puerta de un evento. Dueño: Trist
 Columnas: Código | Nombre | Email | Tipo | QR (imagen) | Enlace de imagen QR | HTML para correo.
 1. Tristan llena Nombre/Email/Tipo → el QR y el enlace se generan solos (quickchart.io/qr con el código; solo el código sale a ese servicio, no datos personales).
 2. Otra persona envía los correos (mail merge usando «HTML para correo» o el enlace de imagen).
-3. En la puerta: Sheet → Archivo > Descargar > CSV → pestaña Datos de la app → Importar (detecta Código, Nombre, Tipo).
+3. En la puerta (modo en línea, el normal): la app habla con el Sheet vía Apps Script (`apps-script/Code.gs`, ver `LEEME.md`). Cada escaneo valida y escribe `Estado` = Validado y `Hora ingreso` en el Sheet (columnas H e I; por defecto `Inactivo`). Segundo escaneo → «YA INGRESADO … a las HH:MM». Bloqueo (LockService) evita doble ingreso entre varios porteros.
+   Modo sin conexión (respaldo): Sheet → Descargar CSV → pestaña Datos → Importar.
+- La clave del script va en `apps-script/Code.local.gs` (ignorado por git). El repo solo tiene `Code.gs` con marcador. La URL y la clave se escriben en la app (se guardan en el dispositivo).
+- Un código cuyo Nombre está vacío cuenta como NO VÁLIDO (no se asignó a nadie).
 - La hoja está en locale es_CL: las fórmulas por API van con `;` y funciones en español (`SI`).
 - `IMAGE` pide «Permitir acceso» la primera vez que se abre la hoja.
 - Los QR codifican solo el código (no PII). No se re-generan: los códigos son valores fijos, no fórmulas.
