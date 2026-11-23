@@ -168,6 +168,9 @@ const find=code=>guests.find(g=>norm(g.code)===norm(code));
 
 /* ---------- conexión con Google Sheets (Apps Script) ---------- */
 let cfg={};try{cfg=JSON.parse(localStorage.getItem('onnet_cfg')||'{}')}catch(e){}
+// En Netlify, el build reemplaza estos marcadores con las variables ONNET_URL y ONNET_KEY (no están en el repo)
+const DEF={u:'__ONNET_URL__',k:'__ONNET_KEY__'};
+if(!cfg.url&&/^https:\/\/script\.google\.com\//.test(DEF.u))cfg={url:DEF.u,key:DEF.k};
 async function api(action,params){
   const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),12000);
   try{

@@ -1,6 +1,8 @@
 # Netlify publica solo la app (index.html), no CLAUDE.md, el script ni otros archivos del repo.
+# El build inyecta la conexion al Sheet desde las variables de entorno ONNET_URL y ONNET_KEY
+# (se definen en Netlify > Project configuration > Environment variables; no van al repositorio).
 [build]
-  command = "mkdir -p dist && cp index.html dist/"
+  command = "mkdir -p dist && sed -e \"s|__ONNET_URL__|$ONNET_URL|g\" -e \"s|__ONNET_KEY__|$ONNET_KEY|g\" index.html > dist/index.html"
   publish = "dist"
 
 # Que los celulares reciban siempre la última versión de la app
@@ -10,3 +12,4 @@
     Cache-Control = "no-cache"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "no-referrer"
+    X-Robots-Tag = "noindex, nofollow"
