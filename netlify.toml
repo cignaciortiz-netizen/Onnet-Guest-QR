@@ -1,0 +1,12 @@
+# Netlify publica solo la app (index.html), no CLAUDE.md, el script ni otros archivos del repo.
+[build]
+  command = "mkdir -p dist && cp index.html dist/"
+  publish = "dist"
+
+# Que los celulares reciban siempre la última versión de la app
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "no-cache"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"
