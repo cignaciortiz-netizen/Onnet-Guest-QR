@@ -6,3 +6,4 @@ ingresos*
 
 # Copia del script con la clave real
 *.local.*
+.claude/launch.json

@@ -2,7 +2,7 @@
 # El build inyecta la conexion al Sheet desde las variables de entorno ONNET_URL y ONNET_KEY
 # (se definen en Netlify > Project configuration > Environment variables; no van al repositorio).
 [build]
-  command = "mkdir -p dist && sed -e \"s|__ONNET_URL__|$ONNET_URL|g\" -e \"s|__ONNET_KEY__|$ONNET_KEY|g\" index.html > dist/index.html"
+  command = "mkdir -p dist/assets && cp assets/* dist/assets/ && sed -e \"s|__ONNET_URL__|$ONNET_URL|g\" -e \"s|__ONNET_KEY__|$ONNET_KEY|g\" index.html > dist/index.html"
   publish = "dist"
 
 # La clave va a la pagina a proposito; se omite del escaner de secretos solo esas dos variables y ese archivo
