@@ -3,3 +3,6 @@
 *.xlsx
 ingresos*
 .claude/settings.local.json
+
+# Copia del script con la clave real
+*.local.*

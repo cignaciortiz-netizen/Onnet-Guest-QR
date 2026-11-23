@@ -62,7 +62,14 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 
 <section class="tab" id="t-data">
   <div class="card">
-    <h3>1. Cargar invitados</h3>
+    <h3>Conexión con Google Sheets</h3>
+    <input id="cfgUrl" placeholder="URL de la aplicación web (termina en /exec)" autocomplete="off">
+    <div class="row" style="margin-top:8px"><input id="cfgKey" placeholder="Clave" type="password" autocomplete="off"></div>
+    <div class="row"><button class="b p" id="cfgSave">Guardar y sincronizar</button><button class="b" id="cfgOff">Desconectar</button></div>
+    <p class="h" id="cfgMsg">Sin conexión: la app usa solo la lista local de este dispositivo.</p>
+  </div>
+  <div class="card">
+    <h3>Cargar invitados por CSV (modo sin conexión)</h3>
     <input type="file" id="file" accept=".csv,.txt">
     <p class="h">CSV con encabezados (separador , o ;). Después eliges qué columna es el código del QR.</p>
     <div id="map" style="display:none">
@@ -101,7 +108,7 @@ const norm=s=>String(s||'').trim().toLowerCase();
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('nav button,.tab').forEach(x=>x.classList.remove('on'));
   b.classList.add('on');$('#'+b.dataset.t).classList.add('on');
-  if(b.dataset.t==='t-list')renderList();
+  if(b.dataset.t==='t-list'){renderList();if(cfg.url)syncList().then(renderList).catch(()=>{})}
 });
 
 /* ---------- extraer código del QR (texto, URL o JSON) ---------- */
@@ -116,17 +123,46 @@ function extractCode(raw){
 }
 const find=code=>guests.find(g=>norm(g.code)===norm(code));
 
+/* ---------- conexión con Google Sheets (Apps Script) ---------- */
+let cfg={};try{cfg=JSON.parse(localStorage.getItem('onnet_cfg')||'{}')}catch(e){}
+async function api(action,params){
+  const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),12000);
+  try{
+    const r=await fetch(cfg.url+'?'+new URLSearchParams({action,key:cfg.key,...params}),{signal:ctl.signal});
+    const j=await r.json();if(j.status==='error')throw new Error(j.message);return j;
+  }finally{clearTimeout(t)}
+}
+async function syncList(){
+  const r=await api('list',{});
+  guests=r.guests.map(g=>({code:g.code,name:g.name,extra:g.tipo,checkedAt:norm(g.estado)==='validado'?(g.hora?Date.parse(g.hora):Date.now()):null}));
+  save();stats();return guests.length;
+}
+const hhmm=t=>new Date(t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+
 /* ---------- validar ---------- */
-let lastCode='',lastAt=0;
-function validate(raw,manual){
-  const code=manual?raw:extractCode(raw);
+let lastCode='',lastAt=0,busy=false;
+async function validate(raw,manual){
+  let code=manual?raw:extractCode(raw);
   const now=Date.now();
   if(!manual&&code===lastCode&&now-lastAt<3500)return; // evita lecturas repetidas
+  if(busy)return;
   lastCode=code;lastAt=now;
   let g=find(code);
   if(!g&&manual){const m=guests.filter(x=>norm(x.name).includes(norm(code)));if(m.length===1)g=m[0];else if(m.length>1){return show('warn','VARIOS',`${m.length} coincidencias`,'Busca en la pestaña Invitados',[200])}}
+  if(cfg.url){ // modo en línea: el Sheet decide y guarda el estado
+    if(g)code=g.code;
+    busy=true;
+    try{
+      const r=await api('check',{code});
+      if(r.status==='ok'){const l=find(code);if(l)l.checkedAt=Date.now();save();stats();
+        show('ok','VÁLIDO ✓',r.name,r.tipo||'',[120])}
+      else if(r.status==='used')show('warn','YA INGRESADO',r.name,'Este código ya fue ingresado'+(r.hora?' a las '+hhmm(r.hora):''),[150,80,150]);
+      else show('bad','NO VÁLIDO','Código no registrado',code,[300,100,300]);
+    }catch(e){show('warn','SIN CONEXIÓN','No se pudo consultar el Sheet','Revisa internet y vuelve a escanear',[200,100,200]);lastCode=''}
+    busy=false;return;
+  }
   if(!g)return show('bad','NO VÁLIDO','Código no registrado',code,[300,100,300]);
-  if(g.checkedAt){return show('warn','YA INGRESÓ',g.name,'Entró a las '+new Date(g.checkedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}),[150,80,150])}
+  if(g.checkedAt){return show('warn','YA INGRESADO',g.name,'Este código ya fue ingresado a las '+hhmm(g.checkedAt),[150,80,150])}
   g.checkedAt=now;save();stats();
   show('ok','VÁLIDO ✓',g.name,g.extra||'',[120]);
 }
@@ -162,7 +198,9 @@ function renderList(){
    <button class="b" onclick="toggle('${esc(g.code).replace(/'/g,'')}')">${g.checkedAt?'Deshacer':'Check-in'}</button></div></div>`).join(''):'<p class="h">Sin invitados. Ve a Datos para importar.</p>';
 }
 $('#q').oninput=renderList;
-window.toggle=c=>{const g=find(c);if(!g)return;g.checkedAt=g.checkedAt?null:Date.now();save();stats();renderList()};
+window.toggle=async c=>{const g=find(c);if(!g)return;
+  if(cfg.url){try{await api(g.checkedAt?'reset':'check',{code:c});await syncList()}catch(e){alert('Sin conexión con el Sheet')}renderList();return}
+  g.checkedAt=g.checkedAt?null:Date.now();save();stats();renderList()};
 window.showQR=c=>{const g=find(c);if(!g)return;const q=qrcode(0,'M');q.addData(g.code);q.make();$('#qrImg').innerHTML=q.createSvgTag(7,0);$('#qrName').textContent=g.name;$('#qrDlg').showModal()};
 function stats(){const n=guests.filter(g=>g.checkedAt).length;$('#stats').innerHTML=`<b>${n}</b> / ${guests.length} ingresaron`}
 
@@ -210,6 +248,19 @@ $('#export').onclick=()=>{
 };
 $('#undoAll').onclick=()=>{if(confirm('¿Borrar todos los ingresos registrados?')){guests.forEach(g=>g.checkedAt=null);save();stats()}};
 $('#wipe').onclick=()=>{if(confirm('¿Borrar TODOS los invitados de este dispositivo?')){guests=[];save();stats()}};
+/* ---------- config Sheets ---------- */
+function cfgUI(){$('#cfgUrl').value=cfg.url||'';$('#cfgKey').value=cfg.key||'';
+  $('#cfgMsg').textContent=cfg.url?'Conectado al Sheet: cada escaneo se guarda allí.':'Sin conexión: la app usa solo la lista local de este dispositivo.'}
+$('#cfgSave').onclick=async()=>{
+  const url=$('#cfgUrl').value.trim(),key=$('#cfgKey').value.trim();
+  if(!/^https:\/\/script\.google\.com\/.+\/exec$/.test(url)||!key)return alert('Pega la URL completa (termina en /exec) y la clave');
+  const prev=cfg;cfg={url,key};$('#cfgMsg').textContent='Conectando…';
+  try{const n=await syncList();try{localStorage.setItem('onnet_cfg',JSON.stringify(cfg))}catch(_){}$('#cfgMsg').textContent=`Conectado ✓ ${n} invitados cargados desde el Sheet.`}
+  catch(e){cfg=prev;$('#cfgMsg').textContent='No se pudo conectar: '+e.message+'. Revisa la URL, la clave y que el acceso sea «Cualquier persona».'}
+};
+$('#cfgOff').onclick=()=>{cfg={};try{localStorage.removeItem('onnet_cfg')}catch(_){}cfgUI()};
+cfgUI();
+if(cfg.url)syncList().catch(()=>{});
 stats();
 </script>
 </body>
