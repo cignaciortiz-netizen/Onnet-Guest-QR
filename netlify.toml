@@ -5,6 +5,11 @@
   command = "mkdir -p dist && sed -e \"s|__ONNET_URL__|$ONNET_URL|g\" -e \"s|__ONNET_KEY__|$ONNET_KEY|g\" index.html > dist/index.html"
   publish = "dist"
 
+# La clave va a la pagina a proposito; se omite del escaner de secretos solo esas dos variables y ese archivo
+[build.environment]
+  SECRETS_SCAN_OMIT_KEYS = "ONNET_KEY,ONNET_URL"
+  SECRETS_SCAN_OMIT_PATHS = "dist/index.html"
+
 # Que los celulares reciban siempre la última versión de la app
 [[headers]]
   for = "/*"
