@@ -36,6 +36,19 @@ button.p{background:var(--acc);border-color:var(--acc);color:#fff}
 .t-in{background:rgba(34,197,94,.18);color:var(--ok)}.t-out{background:rgba(139,147,163,.18);color:var(--mut)}
 h3{margin:0 0 8px;font-size:15px}
 p.h{color:var(--mut);font-size:13px;margin:6px 0 0}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.kpi b{display:block;font-size:28px;line-height:1.1}.kpi span{color:var(--mut);font-size:13px}
+.prog{height:12px;background:var(--line);border-radius:99px;overflow:hidden;margin:6px 0 14px}.prog i{display:block;height:100%;background:var(--ok)}
+.brow{display:grid;grid-template-columns:90px 1fr 70px;gap:8px;align-items:center;margin:8px 0;font-size:14px}
+.brow .prog{margin:0;height:10px}.brow .prog i{background:var(--acc)}.brow em{font-style:normal;color:var(--mut);text-align:right;font-size:13px}
+.hist{display:flex;align-items:flex-end;gap:3px;height:150px;margin-top:8px}
+.hist div{flex:1;background:var(--acc);border-radius:4px 4px 0 0;min-height:2px;position:relative}
+.hist div span{position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--mut)}
+.axis{display:flex;justify-content:space-between;font-size:11px;color:var(--mut);margin-top:4px}
+.kv{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}.kv:last-child{border:0}.kv span{color:var(--mut)}
+select.sm{width:auto;padding:6px 8px;font-size:13px}
+.hd{display:flex;justify-content:space-between;align-items:center}
 dialog{border:1px solid var(--line);border-radius:16px;background:var(--card);color:var(--tx);text-align:center}
 dialog::backdrop{background:rgba(0,0,0,.6)}
 </style>
@@ -58,6 +71,33 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <section class="tab" id="t-list">
   <input id="q" placeholder="Buscar invitado…" autocomplete="off">
   <div class="card" style="margin-top:12px" id="glist"></div>
+</section>
+
+<section class="tab" id="t-met">
+  <div class="kpis">
+    <div class="kpi"><b id="mIn">0</b><span>Ingresaron</span></div>
+    <div class="kpi"><b id="mPend">0</b><span>Faltan por llegar</span></div>
+    <div class="kpi"><b id="mPct">0%</b><span>Asistencia</span></div>
+    <div class="kpi"><b id="mRate">0</b><span>Ingresos últimos 15 min</span></div>
+  </div>
+  <div class="prog"><i id="mBar" style="width:0%"></i></div>
+
+  <div class="card"><h3>Por tipo de invitado</h3><div id="mTipos"></div></div>
+
+  <div class="card">
+    <div class="hd"><h3>Ingresos por hora</h3>
+      <select class="sm" id="mStep"><option value="15">cada 15 min</option><option value="30">cada 30 min</option><option value="60">cada hora</option></select></div>
+    <div class="hist" id="mHist"></div><div class="axis" id="mAxis"></div>
+  </div>
+
+  <div class="card"><h3>Llegada acumulada</h3><div id="mCum"></div>
+    <p class="h">Línea sólida: ingresados. Línea punteada: total de invitados.</p></div>
+
+  <div class="card"><h3>Resumen</h3><div id="mSum"></div></div>
+  <div class="card"><h3>Últimos ingresos</h3><div id="mLast"></div></div>
+  <div class="card"><h3>Lecturas en este dispositivo</h3><div id="mAtt"></div>
+    <p class="h">Cuenta los escaneos hechos desde este celular, incluidos los rechazados.</p></div>
+  <p class="h" id="mUpd"></p>
 </section>
 
 <section class="tab" id="t-data">
@@ -90,6 +130,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <nav>
   <button class="on" data-t="t-scan">Escanear</button>
   <button data-t="t-list">Invitados</button>
+  <button data-t="t-met">Métricas</button>
   <button data-t="t-data">Datos</button>
 </nav>
 
@@ -109,7 +150,9 @@ document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('nav button,.tab').forEach(x=>x.classList.remove('on'));
   b.classList.add('on');$('#'+b.dataset.t).classList.add('on');
   if(b.dataset.t==='t-list'){renderList();if(cfg.url)syncList().then(renderList).catch(()=>{})}
+  if(b.dataset.t==='t-met'){renderMetrics();if(cfg.url)syncList().then(renderMetrics).catch(()=>{})}
 });
+setInterval(()=>{if(document.querySelector('#t-met.on')&&cfg.url&&!busy)syncList().then(renderMetrics).catch(()=>{})},15000); // refresco en vivo
 
 /* ---------- extraer código del QR (texto, URL o JSON) ---------- */
 function extractCode(raw){
@@ -166,7 +209,10 @@ async function validate(raw,manual){
   g.checkedAt=now;save();stats();
   show('ok','VÁLIDO ✓',g.name,g.extra||'',[120]);
 }
+let attempts=[];try{attempts=JSON.parse(localStorage.getItem('onnet_att')||'[]')}catch(e){}
 function show(cls,big,nm,sub,vib){
+  const kind={'VÁLIDO ✓':'ok','YA INGRESADO':'dup','NO VÁLIDO':'bad'}[big];
+  if(kind){attempts.push({t:Date.now(),r:kind});if(attempts.length>3000)attempts.shift();try{localStorage.setItem('onnet_att',JSON.stringify(attempts))}catch(e){}}
   const r=$('#result');r.className='result show r-'+cls;
   r.innerHTML=`<div class="big">${big}</div><div class="nm">${esc(nm)}</div><div class="sub">${esc(sub)}</div>`;
   beep(cls);try{navigator.vibrate&&navigator.vibrate(vib)}catch(e){}
@@ -203,6 +249,50 @@ window.toggle=async c=>{const g=find(c);if(!g)return;
   g.checkedAt=g.checkedAt?null:Date.now();save();stats();renderList()};
 window.showQR=c=>{const g=find(c);if(!g)return;const q=qrcode(0,'M');q.addData(g.code);q.make();$('#qrImg').innerHTML=q.createSvgTag(7,0);$('#qrName').textContent=g.name;$('#qrDlg').showModal()};
 function stats(){const n=guests.filter(g=>g.checkedAt).length;$('#stats').innerHTML=`<b>${n}</b> / ${guests.length} ingresaron`}
+
+/* ---------- métricas ---------- */
+const hms=t=>new Date(t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+const kv=(k,v)=>`<div class="kv"><span>${k}</span><b>${v}</b></div>`;
+function renderMetrics(){
+  const tot=guests.length,ins=guests.filter(g=>g.checkedAt).sort((a,b)=>a.checkedAt-b.checkedAt),n=ins.length;
+  const pct=tot?Math.round(n*1000/tot)/10:0,now=Date.now();
+  $('#mIn').textContent=n;$('#mPend').textContent=tot-n;$('#mPct').textContent=pct+'%';
+  $('#mRate').textContent=ins.filter(g=>now-g.checkedAt<=15*60000).length;$('#mBar').style.width=pct+'%';
+  // por tipo
+  const tipos={};guests.forEach(g=>{const k=g.extra||'Sin tipo';(tipos[k]=tipos[k]||{t:0,i:0}).t++;if(g.checkedAt)tipos[k].i++});
+  $('#mTipos').innerHTML=Object.entries(tipos).map(([k,v])=>`<div class="brow"><span>${esc(k)}</span><div class="prog"><i style="width:${v.t?v.i*100/v.t:0}%"></i></div><em>${v.i} / ${v.t}</em></div>`).join('')||'<p class="h">Sin datos</p>';
+  // histograma por franja
+  const step=+$('#mStep').value*60000;let peak=null;
+  if(n){
+    const a=Math.floor(ins[0].checkedAt/step)*step,z=Math.floor(ins[n-1].checkedAt/step)*step,b=[];
+    for(let t=a;t<=z;t+=step)b.push({t,c:0});
+    ins.forEach(g=>b[Math.floor((g.checkedAt-a)/step)].c++);
+    const mx=Math.max(...b.map(x=>x.c));peak=b.find(x=>x.c===mx);
+    $('#mHist').innerHTML=b.map(x=>`<div title="${hhmm(x.t)}: ${x.c}" style="height:${x.c*100/mx}%">${b.length<=18?`<span>${x.c}</span>`:''}</div>`).join('');
+    $('#mAxis').innerHTML=`<span>${hhmm(a)}</span><span>${hhmm((a+z)/2)}</span><span>${hhmm(z+step)}</span>`;
+    // acumulado
+    const W=300,H=110,t0=ins[0].checkedAt,t1=Math.max(ins[n-1].checkedAt,t0+60000),Y=c=>H-8-(H-16)*c/Math.max(tot,1),X=t=>6+(W-12)*(t-t0)/(t1-t0);
+    let d=`M${X(t0)},${Y(0)}`;ins.forEach((g,i)=>{d+=` L${X(g.checkedAt)},${Y(i)} L${X(g.checkedAt)},${Y(i+1)}`});
+    $('#mCum').innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Ingresos acumulados"><line x1="6" x2="${W-6}" y1="${Y(tot)}" y2="${Y(tot)}" stroke="var(--mut)" stroke-dasharray="4 4"/><path d="${d}" fill="none" stroke="var(--ok)" stroke-width="2.5"/></svg>`;
+  }else{$('#mHist').innerHTML='<p class="h" style="margin:auto">Aún no hay ingresos</p>';$('#mAxis').innerHTML='';$('#mCum').innerHTML='<p class="h">Aún no hay ingresos</p>'}
+  // resumen
+  let s='';
+  s+=kv('Total de invitados',tot)+kv('Ingresaron',`${n} (${pct}%)`)+kv('Pendientes',tot-n);
+  if(n){
+    const span=(ins[n-1].checkedAt-ins[0].checkedAt)/60000;
+    s+=kv('Primer ingreso',`${hms(ins[0].checkedAt)} · ${esc(ins[0].name)}`)+kv('Último ingreso',`${hms(ins[n-1].checkedAt)} · ${esc(ins[n-1].name)}`);
+    s+=kv('Franja más concurrida',`${hhmm(peak.t)}–${hhmm(peak.t+step)} (${peak.c})`);
+    if(span>=1)s+=kv('Promedio',`${(n/(span/60)).toFixed(1)} ingresos/hora`);
+  }
+  $('#mSum').innerHTML=s;
+  // últimos
+  $('#mLast').innerHTML=ins.slice(-12).reverse().map(g=>`<div class="g"><div><b>${esc(g.name)}</b><small>${esc(g.extra||'')}</small></div><span class="tag t-in">${hms(g.checkedAt)}</span></div>`).join('')||'<p class="h">Aún no hay ingresos</p>';
+  // intentos de este dispositivo
+  const c=k=>attempts.filter(a=>a.r===k).length;
+  $('#mAtt').innerHTML=kv('Válidos',c('ok'))+kv('Ya ingresados (repetidos)',c('dup'))+kv('No válidos',c('bad'));
+  $('#mUpd').textContent='Actualizado '+hms(now)+(cfg.url?' · se refresca solo cada 15 s':'');
+}
+$('#mStep').onchange=renderMetrics;
 
 /* ---------- importar ---------- */
 let parsed=null;
