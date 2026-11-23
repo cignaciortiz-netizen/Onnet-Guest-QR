@@ -1,0 +1,5 @@
+# Datos de invitados: nunca al repositorio
+*.csv
+*.xlsx
+ingresos*
+.claude/settings.local.json
