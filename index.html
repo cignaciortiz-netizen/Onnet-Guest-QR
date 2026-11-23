@@ -259,8 +259,12 @@ $('#cfgSave').onclick=async()=>{
   catch(e){cfg=prev;$('#cfgMsg').textContent='No se pudo conectar: '+e.message+'. Revisa la URL, la clave y que el acceso sea «Cualquier persona».'}
 };
 $('#cfgOff').onclick=()=>{cfg={};try{localStorage.removeItem('onnet_cfg')}catch(_){}cfgUI()};
+/* enlace privado de configuración: ...index.html#u=<URL exec>&k=<clave> (se borra de la barra al leerlo) */
+try{const h=new URLSearchParams(location.hash.slice(1));
+  if(h.get('u')&&h.get('k')){cfg={url:h.get('u'),key:h.get('k')};try{localStorage.setItem('onnet_cfg',JSON.stringify(cfg))}catch(_){}
+    history.replaceState(null,'',location.pathname+location.search)}}catch(e){}
 cfgUI();
-if(cfg.url)syncList().catch(()=>{});
+if(cfg.url)syncList().then(n=>{$('#cfgMsg').textContent=`Conectado ✓ ${n} invitados cargados desde el Sheet.`}).catch(()=>{$('#cfgMsg').textContent='Configurado, pero no se pudo leer el Sheet (revisa internet o la URL).'});
 stats();
 </script>
 </body>
