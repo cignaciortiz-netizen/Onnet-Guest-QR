@@ -9,13 +9,15 @@ Plataforma para validar QR de invitados en la puerta de un evento. Dueño: Trist
 
 ## Flujo del evento (definido 2026-11-23)
 ~200 invitados. Google Sheet **«Onnet - Invitados y QR»** (id `1vigh3d1aJbi5s5JP0HUUM3ggyOKtsI-lbc59GNHE65o`, pestaña `Invitados`, 250 filas con código aleatorio `ONN-XXXXXXXX` ya generado).
-Columnas: Código | Nombre | Email | Tipo | QR (imagen) | Enlace de imagen QR | HTML para correo.
-1. Tristan llena Nombre/Email/Tipo → el QR y el enlace se generan solos (quickchart.io/qr con el código; solo el código sale a ese servicio, no datos personales).
+Columnas (desde 2026-11-24, invitados reales cargados desde «confirmados fiesta ONF 2026.xlsx», 207 personas): A Código | B Nombre | C Empresa | D Dirección invitante | E RUT | F Supervisor | G Confirmación (Confirmado por correo/nómina/previamente, Pendiente) | H Email (vacío, a completar) | I Tipo (= Empresa, fórmula; el script y la app lo usan como «tipo») | J QR | K Enlace de imagen QR | L HTML para correo | M Estado (Inactivo/Validado, lo escribe el script) | N Hora ingreso.
+Las filas 209–251 son códigos de reserva sin nombre (no válidos hasta asignarles Nombre). El script busca columnas por encabezado: no renombrar Código, Nombre, Tipo, Estado, Hora ingreso.
+1. Tristan llena Email (y lo que falte) → el QR y el enlace se generan solos (quickchart.io/qr con el código; solo el código sale a ese servicio, no datos personales).
 2. Otra persona envía los correos (mail merge usando «HTML para correo» o el enlace de imagen).
 3. En la puerta (modo en línea, el normal): la app habla con el Sheet vía Apps Script (`apps-script/Code.gs`, ver `LEEME.md`). Cada escaneo valida y escribe `Estado` = Validado y `Hora ingreso` en el Sheet (columnas H e I; por defecto `Inactivo`). Segundo escaneo → «YA INGRESADO … a las HH:MM». Bloqueo (LockService) evita doble ingreso entre varios porteros.
    Modo sin conexión (respaldo): Sheet → Descargar CSV → pestaña Datos → Importar.
 - La clave del script va en `apps-script/Code.local.gs` (ignorado por git). El repo solo tiene `Code.gs` con marcador. La URL y la clave se escriben en la app (se guardan en el dispositivo).
 - Un código cuyo Nombre está vacío cuenta como NO VÁLIDO (no se asignó a nadie).
+- Pestaña **«En vivo»** del Sheet (primera pestaña): totales por fórmula (`CONTAR.SI` sobre Invitados!H y B) + gráfico de torta Ingresaron / Faltan. Se actualiza sola cuando el script escribe `Validado`. Total = filas con Nombre. Para la clienta sin exponer la lista: Insertar → Publicar gráfico (enlace en vivo), o compartir el Sheet solo si ella puede ver los datos.
 - La hoja está en locale es_CL: las fórmulas por API van con `;` y funciones en español (`SI`).
 - `IMAGE` pide «Permitir acceso» la primera vez que se abre la hoja.
 - Los QR codifican solo el código (no PII). No se re-generan: los códigos son valores fijos, no fórmulas.
